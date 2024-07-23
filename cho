@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible"="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Account Book</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .category-selection {
+            display: none;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>가계부</h1>
+    <form id="account-form">
+        <label for="category">카테고리:</label>
+        <input type="text" id="category" name="category" required>
+        <br><br>
+        <label for="amount">값:</label>
+        <input type="number" id="amount" name="amount" required>
+        <br><br>
+        <button type="submit">추가</button>
+    </form>
+    <div id="category-selection" class="category-selection">
+        <p>해당 항목이 어떤 카테고리에 속합니까?</p>
+        <form id="category-selection-form">
+            <!-- Checkboxes will be dynamically inserted here -->
+        </form>
+        <button id="select-category-btn">선택</button>
+    </div>
+    <h2>입력된 항목들</h2>
+    <table id="items-table">
+        <thead>
+            <tr>
+                <th>카테고리</th>
+                <th>세부 항목</th>
+                <th>값</th>
+                <th>삭제</th>
+            </tr>
+        </thead>
+        <tbody id="items-list">
+        </tbody>
+    </table>
+    <h2>카테고리별 총합</h2>
+    <ul id="category-totals"></ul>
+
+    <script>
+        const categoryMapping = {
+            '과일': ['사과', '바나나', '포도', '오렌지', '딸기', '블루베리', '키위', '수박', '멜론', '복숭아', '자두', '파인애플', '망고', '레몬', '라임', '체리', '무화과', '석류', '귤', '참외'],
+            '채소': ['상추', '시금치', '당근', '양파', '감자', '고구마', '브로콜리', '오이', '호박', '토마토', '가지', '피망', '파프리카', '버섯', '고추', '대파', '마늘', '생강', '샐러리', '아스파라거스'],
+            '음료': ['콜라', '사이다', '커피', '주스', '차', '우유', '두유', '맥주', '와인', '소주', '위스키', '보드카', '럼', '진', '칵테일', '에너지 드링크', '스무디', '탄산수', '생수', '스포츠 음료'],
+            '고기': ['소고기', '돼지고기', '닭고기', '양고기', '오리고기', '칠면조', '베이컨', '햄', '소시지', '삼겹살', '스테이크', '갈비', '등심', '안심', '닭가슴살', '닭다리', '닭날개', '연어', '참치', '고등어'],
+            '아기용품': ['기저귀', '분유', '젖병', '이유식', '아기옷', '아기침대', '유모차', '아기장난감', '아기욕조', '아기용 샴푸', '아기용 로션', '아기용 수건', '아기용 담요', '아기용 베개', '아기용 매트', '아기용 의자', '아기용 신발', '아기용 양말', '아기용 식기', '아기용 가방'],
+            '가전제품': ['냉장고', '세탁기', '건조기', '전자레인지', '오븐', '가스레인지', '인덕션', '청소기', '에어컨', '선풍기', '가습기', '공기청정기', 'TV', '컴퓨터', '노트북', '스마트폰', '태블릿', '프린터', '복합기', '커피머신'],
+            '의류': ['티셔츠', '바지', '셔츠', '드레스', '치마', '자켓', '코트', '패딩', '스웨터', '카디건', '블라우스', '정장', '운동복', '수영복', '잠옷', '속옷', '양말', '신발', '모자', '장갑'],
+            '가구': ['소파', '침대', '의자', '책상', '식탁', '옷장', '서랍장', '책장', '커피테이블', 'TV스탠드', '선반', '화장대', '거울', '신발장', '의류수납장', '침실용 가구', '거실용 가구', '주방용 가구', '사무용 가구', '야외용 가구'],
+            '미용': ['스킨케어', '클렌징', '로션', '크림', '에센스', '세럼', '선크림', '마스크팩', '메이크업', '립스틱', '아이라이너', '마스카라', '아이섀도우', '블러셔', '파운데이션', '컨실러', '네일케어', '헤어케어', '바디케어', '향수'],
+            '식료품': ['쌀', '밀가루', '설탕', '소금', '식용유', '간장', '고추장', '된장', '케첩', '마요네즈', '스파게티 소스', '카레가루', '즉석식품', '통조림', '라면', '스낵', '초콜릿', '캔디', '견과류', '시리얼'],
+            '스포츠용품': ['축구공', '농구공', '배구공', '테니스 라켓', '배드민턴 라켓', '골프 클럽', '야구 배트', '헬멧', '보호대', '운동화', '등산화', '자전거', '런닝머신', '요가 매트', '덤벨', '운동복', '스포츠백', '수영복', '수영모', '고글'],
+            '취미': ['책', '악기', '미술용품', '공예용품', '사진기', '렌즈', '드론', '낚시용품', '캠핑용품', '퍼즐', '보드게임', '비디오게임', '컴퓨터게임', '모형', '장난감', '플라모델', '라디오', '콜렉터즈 아이템', '운동용품', '서적'],
+            '반려동물': ['애완동물 사료', '애완동물 간식', '애완동물 장난감', '애완동물 침대', '애완동물 옷', '애완동물 샴푸', '애완동물 목욕용품', '애완동물 건강보조제', '애완동물 훈련용품', '애완동물 배변용품', '애완동물 케이지', '애완동물 하우스', '애완동물 펜스', '애완동물 리드줄', '애완동물 미용도구', '애완동물 먹이통', '애완동물 물통', '애완동물 이동가방', '애완동물 목걸이', '애완동물 ID태그'],
+            '여행': ['비행기 티켓', '기차 티켓', '버스 티켓', '호텔 예약', '여행 보험', '여행 가방', '여권', '비자', '지갑', '여행용 의류', '여행용 신발', '여행용 세면도구', '지도', '여행 가이드북', '사진기', '렌즈', '휴대폰 충전기', '배터리팩', '여행용 베개', '여행용 담요'],
+            '자동차': ['자동차', '자동차 보험', '주유비', '정비비', '세차비', '자동차 액세서리', '타이어', '엔진오일', '와이퍼', '배터리', '브레이크 패드', '차량 청소용품', '내비게이션', '차량용 공기청정기', '차량용 충전기', '차량용 시트커버', '차량용 스피커', '차량용 블랙박스', '차량용 대쉬캠', '차량용 음료수 홀더'],
+            '건강': ['병원비', '치과비', '안경', '렌즈', '약품', '비타민', '영양제', '운동용품', '헬스장 이용료', '마사지', '한의원비', '물리치료', '정신건강 상담', '건강검진', '체중계', '혈압계', '혈당계', '소독약', '상처치료용품', '의료보험'],
+            '교육': ['학비', '교재', '학원비', '온라인 강의', '도서', '문구류', '컴퓨터', '노트북', '프린터', '복사기', '필기구', '노트', '가방', '책상', '의자', '학습용 소프트웨어', '연습장', '실험도구', '미술용품', '음악용품'],
+            '가정용품': ['청소용품', '세제', '쓰레기봉투', '화장지', '휴지', '주방용품', '조리도구', '식기류', '조리기구', '다리미', '빨래건조대', '빨래바구니', '욕실용품', '샤워기', '비누', '샴푸', '린스', '치약', '칫솔', '면도기'],
+            '인터넷/통신': ['인터넷 요금', '휴대폰 요금', '케이블 TV 요금', '위성 TV 요금', 'IPTV 요금', '전화 요금', '무선 인터넷', '공유기', '모뎀', '무선 랜카드', '케이블', '충전기', '휴대폰 케이스', '이어폰', '헤드셋', '블루투스 스피커', '무선 마우스', '무선 키보드', '무선 충전기', '보조 배터리'],
+            // 추가 카테고리 및 항목을 여기에 추가하세요
+        };
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            loadItems();
+        });
+
+        document.getElementById('account-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const item = document.getElementById('category').value;
+            const amount = document.getElementById('amount').value;
+
+            const category = getCategory(item);
+            if (category === '기타') {
+                showCategorySelection(item, amount);
+            } else {
+                addItem(category, item, amount);
+                saveItem(category, item, amount);
+                clearForm();
+                updateCategoryTotals();
+            }
+        });
+
+        document.getElementById('select-category-btn').addEventListener('click', function() {
+            const selectedCategory = document.querySelector('input[name="category"]:checked').value;
+            const item = document.getElementById('category').value;
+            const amount = document.getElementById('amount').value;
+
+            addItem(selectedCategory, item, amount);
+            saveItem(selectedCategory, item, amount);
+            clearForm();
+            hideCategorySelection();
+            updateCategoryTotals();
+        });
+
+        function getCategory(item) {
+            for (const category in categoryMapping) {
+                if (categoryMapping[category].includes(item)) {
+                    return category;
+                }
+            }
+            return '기타'; // 매칭되는 카테고리가 없으면 '기타'로 분류
+        }
+
+        function addItem(category, item, amount) {
+            const itemList = document.getElementById('items-list');
+            const row = document.createElement('tr');
+
+            const categoryCell = document.createElement('td');
+            categoryCell.textContent = category;
+            row.appendChild(categoryCell);
+
+            const itemCell = document.createElement('td');
+            itemCell.textContent = item;
+            row.appendChild(itemCell);
+
+            const amountCell = document.createElement('td');
+            amountCell.textContent = amount + '원';
+            row.appendChild(amountCell);
+
+            const deleteCell = document.createElement('td');
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = '삭제';
+            deleteButton.onclick = function() {
+                if (confirm('정말 삭제하시겠습니까?')) {
+                    itemList.removeChild(row);
+                    deleteItem(category, item, amount);
+                    updateCategoryTotals();
+                }
+            };
+            deleteCell.appendChild(deleteButton);
+            row.appendChild(deleteCell);
+
+            itemList.appendChild(row);
+        }
+
+        function saveItem(category, item, amount) {
+            const items = JSON.parse(localStorage.getItem('items')) || [];
+            items.push({ category, item, amount });
+            localStorage.setItem('items', JSON.stringify(items));
+        }
+
+        function deleteItem(category, item, amount) {
+            let items = JSON.parse(localStorage.getItem('items')) || [];
+            items = items.filter(i => !(i.category === category && i.item === item && i.amount == amount));
+            localStorage.setItem('items', JSON.stringify(items));
+        }
+
+        function loadItems() {
+            const items = JSON.parse(localStorage.getItem('items')) || [];
+            items.forEach(item => {
+                addItem(item.category, item.item, item.amount);
+            });
+            updateCategoryTotals();
+        }
+
+        function showCategorySelection(item, amount) {
+            const categorySelection = document.getElementById('category-selection');
+            const categorySelectionForm = document.getElementById('category-selection-form');
+            categorySelectionForm.innerHTML = ''; // Clear previous checkboxes
+
+            for (const category in categoryMapping) {
+                const label = document.createElement('label');
+                const checkbox = document.createElement('input');
+                checkbox.type = 'radio';
+                checkbox.name = 'category';
+                checkbox.value = category;
+
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(category));
+                categorySelectionForm.appendChild(label);
+                categorySelectionForm.appendChild(document.createElement('br'));
+            }
+
+            categorySelection.style.display = 'block';
+        }
+
+        function hideCategorySelection() {
+            const categorySelection = document.getElementById('category-selection');
+            categorySelection.style.display = 'none';
+        }
+
+        function clearForm() {
+            document.getElementById('category').value = '';
+            document.getElementById('amount').value = '';
+        }
+
+        function updateCategoryTotals() {
+            const items = JSON.parse(localStorage.getItem('items')) || [];
+            const totals = {};
+
+            items.forEach(item => {
+                if (!totals[item.category]) {
+                    totals[item.category] = 0;
+                }
+                totals[item.category] += parseInt(item.amount, 10);
+            });
+
+            const categoryTotals = document.getElementById('category-totals');
+            categoryTotals.innerHTML = ''; // Clear previous totals
+
+            for (const category in totals) {
+                const listItem = document.createElement('li');
+                listItem.textContent = `${category} 총합: ${totals[category]}원`;
+                categoryTotals.appendChild(listItem);
+            }
+        }
+    </script>
+</body>
+</html>
